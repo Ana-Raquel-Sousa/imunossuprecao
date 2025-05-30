@@ -1,0 +1,140 @@
+import numpy as np                                 #biblioteca de matemática avançada
+import matplotlib.pyplot as plt                    #criar gráficos e plotar dados
+import pandas as pd                                #análise de dados
+import random as rd
+import time
+
+def graph_generator_4(eixo_x,eixo_y,valor,t,dados2,nome):
+    cores =  [
+    '#1f77b4', # azul
+    '#2f8739', # verde
+    '#d62728', # vermelho
+    ]
+    fig, ax = plt.subplots()
+    ax.set_facecolor("#FFFFFF")
+    plt.subplots_adjust(right=0.97, top=0.97)
+    plt.xlabel(eixo_x, fontsize = 12, labelpad = 4)
+    plt.ylabel(eixo_y,  fontsize = 12, labelpad = 6)
+    for i in range(len(valor)):
+        plt.plot(t,dados2[i,:,0],cores[i],label = 'es='+str(valor[i]),linewidth = '1.9')
+    leg = ax.legend()
+    plt.grid(color = 'w', linestyle = '-', linewidth = 0.50)
+    name = nome + '.png'
+    plt.savefig(name,format='png')
+    return 0
+
+def graph_generator_3(eixo_x,eixo_y,valor,t,dados2,nome):
+    cores =  [
+    '#2f8739', # verde
+    # '#B5A200', #amarelo-esverdeado
+    '#1f77b4', # azul
+    '#FF7F0E', # laranja
+    '#d62728', # vermelho
+    ]
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.set_facecolor("#FFFFFF")
+    ax.set_xlim(-0.1, 20.1)
+    ax.tick_params(axis='x', labelsize=15)
+    ax.tick_params(axis='y', labelsize=15)
+    plt.subplots_adjust(right=0.97, top=0.97)
+    plt.xlabel(eixo_x, fontsize = 20, labelpad = 4)
+    plt.ylabel(eixo_y,  fontsize = 20, labelpad = 6)
+    for i in range(len(valor)):
+        plt.plot(t,dados2[i,:,0],cores[i],label = 'es='+str(valor[i]),linewidth = '2.5')
+    # leg = ax.legend(fontsize = 15)
+    plt.grid(color = 'grey', linestyle = '--', linewidth = 0.3)
+    name = nome + '.png'
+    plt.savefig(name,format='png')
+    return 0
+
+# time.time()                                        #valores iniciais
+wks_s = np.array([1.0, 1.96, 2.425, 3.63])           #% da população de monócitos ao longo da gravidez em relação a não grávida
+wks_z = np.array([1.0, 0.81, 0.64, 0.57])            #% da população de linfócitos ao longo da gravidez em relação a não grávida
+wks_taxa = np.array([1.0, 0.5963, 0.5611, 1.0704])   #% da produção de linfócitos-T com o mesmo estímulo
+a_wks = np.array([0.001, 0.002, 0.003])              #taxa de invasão bem-sucedida em um monócito susceptível
+
+lamb = 0.001                        #Taxa de reposição celular
+eta2 = 5000                         #Taxa de produtividade da célula infectada 5*10^4
+delta2 = 0.3 #0.4                   #Taxa de morte celular induzida por vírus
+c = 0.3                             #Taxa de eliminação viral
+k2 = 1*10e-5                        #Taxa de infecção constante 1*10e-5
+k1 = 2*10e-4 #1*10^-1               #Taxa de latência
+f = 1                               #Número de vírions infectantes por célula
+m = 0.1                             #Taxa de destruição celular imunoinduzida
+alpha0 = 0.2                        #Taxa de saída e reativação de monócitos 0.2
+rL = 4*10e-3                        #Nível de equilíbrio das células latentes
+rs = 4*10e1                         #Nivel de equilíbrio de células suscetíveis
+lambda_E = 4*10e-2 #4*10e-3         #Reposição homeostática de células imunes
+e =  12  #9                         #Termo de célula efetora específica do HCMV
+Rho =   0.3 #5                      #Resposta imune induzida por vírion
+beta4 = 0.8                         #Redução da capacidade do sistema imunológico pelo HCMV
+
+h = 0.01                            #parâmetro de precisão para método numérico de Runge-Kutta
+h1 = h/2                            #parâmetro intermediário de precisão para método numérico de Runge-Kutta
+t = np.arange(0, 20+h, h)           #vetor de tempo, até 10 dias
+time = len(t)
+# es_wks = np.array([0.4,0.7,0.9])                     #taxa de imunussupressão
+es_wks = np.array([0,0.46,0.66,0.86])                  #taxa de imunussupressão #lembrar de adicionar sem imunossupresão no gráfico
+pregnancy = len(es_wks)
+kutta = 4
+# print(lambda_E)
+
+vi = np.zeros((pregnancy,time,kutta))
+li = np.zeros((pregnancy,time,kutta))
+ls = np.zeros((pregnancy,time,kutta))
+lL = np.zeros((pregnancy,time,kutta))
+a = np.zeros((pregnancy,time,kutta))
+
+dvi = np.zeros((pregnancy,time - 1,kutta))
+dli = np.zeros((pregnancy,time -1,kutta))
+dls = np.zeros((pregnancy,time -1,kutta))
+dlL = np.zeros((pregnancy,time -1,kutta))
+da = np.zeros((pregnancy,time -1,kutta))
+
+incremento_vi = np.zeros((pregnancy,time))
+incremento_li = np.zeros((pregnancy,time))
+incremento_ls = np.zeros((pregnancy,time))
+incremento_lL = np.zeros((pregnancy,time))
+incremento_a = np.zeros((pregnancy,time))
+
+vi[:,0,0] = 0 #0 - 1*10e-5
+li[:,0,0] = 0.1*10e-4 #5
+ls[:,0,0] = 400
+lL[:,0,0] = 0.1 #0.1
+a[:,0,0] =  0 #10 - 0.001
+
+for w in range(len(es_wks)):
+    for n in range(time - 1):
+       for r in range(kutta):
+
+               #es_wks[w] = 1 - (ls[w,n,r]/z[w,n,r])
+               dvi[w,n,r] = eta2 * delta2 * li[w,n,r] - c * vi[w,n,r] - f * k2 * ls[w,n,r] * vi[w,n,r]
+               dli[w,n,r] = k2 * li[w,n,r] * vi[w,n,r] - delta2 * li[w,n,r] - (1 - es_wks[w]) * m * a[w,n,r] * li[w,n,r] + alpha0 * lL[w,n,r] - k1 * li[w,n,r]
+               dlL[w,n,r] = lamb * lL[w,n,r] * (1 - lL[w,n,r]/rL) - alpha0 * (1 + es_wks[w]) * lL[w,n,r] + k1 * li[w,n,r]
+               dls[w,n,r] = (1 - es_wks[w]) * lamb * (1 - ls[w,n,r]/rs) * ls[w,n,r] - k2 * (1 + es_wks[w]) * ls[w,n,r] * vi[w,n,r]
+               da[w,n,r] = (1 - es_wks[w]) * (lambda_E * (1 - (a[w,n,r]/e)) * a[w,n,r] + (Rho * vi[w,n,r]))
+               if r < (kutta - 1):
+
+                vi[w,n,r+1] = vi[w,n,r] + h1 * dvi[w,n,r]
+                li[w,n,r+1] = li[w,n,r] + h1 * dli[w,n,r]
+                lL[w,n,r+1] = lL[w,n,r] + h1 * dlL[w,n,r]
+                ls[w,n,r+1] = ls[w,n,r] + h1 * dls[w,n,r]
+                a[w,n,r+1] = a[w,n,r] + h1 * da[w,n,r]
+
+       incremento_vi[w,n] = (h/6) * (dvi[w,n,0] + 2 * dvi[w,n,1] + 2 * dvi[w,n,2] + dvi[w,n,3])
+       incremento_li[w,n] = (h/6) * (dli[w,n,0] + 2 * dli[w,n,1] + 2 * dli[w,n,2] + dli[w,n,3])
+       incremento_lL[w,n] = (h/6) * (dlL[w,n,0] + 2 * dlL[w,n,1] + 2 * dlL[w,n,2] + dlL[w,n,3])
+       incremento_ls[w,n] = (h/6) * (dls[w,n,0] + 2 * dls[w,n,1] + 2 * dls[w,n,2] + dls[w,n,3])
+       incremento_a[w,n] = (h/6) * (da[w,n,0] + 2 * da[w,n,1] + 2 * da[w,n,2] + da[w,n,3])
+
+       vi[w,n+1,0] = vi[w,n,0] + incremento_vi[w,n]
+       li[w,n+1,0] = li[w,n,0] + incremento_li[w,n]
+       lL[w,n+1,0] = lL[w,n,0] + incremento_lL[w,n]
+       ls[w,n+1,0] = ls[w,n,0] + incremento_ls[w,n]
+       a[w,n+1,0] = a[w,n,0] + incremento_a[w,n]
+
+graph_generator_3(f'Tempo (Dias)',u'Partículas virais/\u03bcL',es_wks,t,vi,'vi(t)')
+graph_generator_3(f'Tempo (dias)',u'Linfócitos T infectados/\u03bcL',es_wks,t,li,'li(t)')
+graph_generator_3(f'Tempo (dias)',u'Linfócitos T susceptíveis/\u03bcL',es_wks,t,ls,'ls(t)')
+graph_generator_3(f'Tempo (dias)',u'Linfócitos T latentes/\u03bcL',es_wks,t,lL,'lL(t)')
+graph_generator_3(f'Tempo (dias)',u'Anticorpos/\u03bcL',es_wks,t,a,'a(t)')
